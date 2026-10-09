@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+.env
+.env.*
+!.env.example
+*.db
+.coverage
+backend/coverage.json
+backend/test-results.xml
+backend/lint-results.json
+frontend/node_modules/
+frontend/dist/

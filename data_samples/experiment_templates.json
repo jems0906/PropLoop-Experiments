@@ -1,0 +1,7 @@
+[
+  {"id":"maintenance-triage","name":"Tenant maintenance triage assistant","target_metric":"Median time to first assignment","risks":["Urgent requests may be under-prioritized","Incorrect routing could delay repairs"]},
+  {"id":"rent-delinquency","name":"Rent delinquency reminder flow","target_metric":"On-time recovery rate","risks":["Incorrect balance data could erode trust","Excessive messaging may frustrate residents"]},
+  {"id":"lease-renewal","name":"Lease renewal outreach optimizer","target_metric":"Lease renewal conversion rate","risks":["Offers must follow fair housing policies","Personalization may rely on incomplete data"]},
+  {"id":"owner-report","name":"Owner report summarizer","target_metric":"Report preparation time","risks":["A summary could omit a material variance","Generated claims must remain traceable to source data"]},
+  {"id":"support-categorizer","name":"Support ticket auto-categorizer","target_metric":"Correct first-route rate","risks":["Ambiguous tickets may be routed incorrectly","Sensitive requests need human escalation"]}
+]

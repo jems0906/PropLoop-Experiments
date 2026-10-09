@@ -1,0 +1,7 @@
+[
+  {"name":"Tenant maintenance triage assistant","template_id":"maintenance-triage","stage":"build","target_metric":"Median time to first assignment"},
+  {"name":"Rent delinquency reminder flow","template_id":"rent-delinquency","stage":"measure","target_metric":"On-time recovery rate"},
+  {"name":"Lease renewal outreach optimizer","template_id":"lease-renewal","stage":"hypothesis","target_metric":"Lease renewal conversion rate"},
+  {"name":"Owner report summarizer","template_id":"owner-report","stage":"build","target_metric":"Report preparation time"},
+  {"name":"Support ticket auto-categorizer","template_id":"support-categorizer","stage":"hypothesis","target_metric":"Correct first-route rate"}
+]

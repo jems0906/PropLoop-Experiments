@@ -1,0 +1,4 @@
+experiment,metric,baseline,observed,unit,sample_size
+Rent delinquency reminder flow,On-time recovery rate,61,72,%,140
+Tenant maintenance triage assistant,Median time to first assignment,42,29,min,48
+Owner report summarizer,Report preparation time,95,67,min,32
