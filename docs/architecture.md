@@ -36,6 +36,8 @@ Production requires `COOKIE_SECURE=true`, the exact public frontend origin in `F
 
 Hosted provider responses must satisfy the complete nested experiment-spec schema. Missing keys, network errors, and malformed drafts fail explicitly without replacing the existing draft or silently switching providers. Mock is the default; hosted-provider integration tests use stubbed responses unless operator credentials are configured.
 
+The frontend enables the official Nginx local-resolver entrypoint helper and resolves the backend private hostname at request time with a 10-second DNS cache. It does not pin the backend IP at startup; replacing a backend container therefore does not require restarting the frontend.
+
 The optional GitHub Actions quality upload uses JUnit, coverage, and lint reports from CI. It requires a backend `QUALITY_INGEST_TOKEN` and matching repository secrets, plus a selected experiment ID on workflow dispatch. Manual quality inputs remain available for reviewed values outside CI.
 
 The original proposed file tree is implemented with consolidated routes and models, rather than many single-purpose wrappers. Account, board, outcome-capture, and team-management UI components are separated; equivalent lifecycle behavior is server-enforced regardless of client layout.
