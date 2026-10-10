@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.database import Base, engine
 from app import models  # noqa: F401
+from app import auth_models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", engine.url.render_as_string(hide_password=False).replace("%", "%%"))

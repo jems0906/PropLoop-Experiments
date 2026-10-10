@@ -1,20 +1,25 @@
 import json
 
 import httpx
+from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.config import settings
+from app.spec_contract import ExperimentSpec
 
 
 def generate_spec(experiment: dict) -> dict:
-    """Use an optional hosted model, falling back to a deterministic local spec."""
+    """Generate a validated draft without silently substituting providers."""
     provider = settings.ai_provider.lower()
-    if provider == "openai" and settings.openai_api_key:
-        return _openai_spec(experiment)
-    if provider == "anthropic" and settings.anthropic_api_key:
-        return _anthropic_spec(experiment)
-    if provider == "gemini" and settings.gemini_api_key:
-        return _gemini_spec(experiment)
-    return _mock_spec(experiment)
+    adapters = {"mock": _mock_spec, "openai": _openai_spec, "anthropic": _anthropic_spec, "gemini": _gemini_spec}
+    if provider not in adapters:
+        raise HTTPException(503, "Unsupported AI provider configured")
+    if provider != "mock" and not getattr(settings, f"{provider}_api_key"):
+        raise HTTPException(503, f"The configured {provider} provider requires an API key")
+    try:
+        return ExperimentSpec.model_validate(adapters[provider](experiment)).model_dump()
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, ValidationError) as exc:
+        raise HTTPException(502, "AI provider failed to return a valid experiment spec; retry or review provider configuration") from exc
 
 
 def _mock_spec(experiment: dict) -> dict:

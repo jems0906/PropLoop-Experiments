@@ -9,7 +9,7 @@ def build_quality_artifact(kind: str, experiment: dict, task_count: int, complet
             raise ValueError("tests_passed cannot exceed tests_total")
 
     if kind == "pr-checklist":
-        return {"title": "Experiment PR review", "items": [
+        return {"title": f"PR review: {experiment['name']}", "hypothesis": experiment["hypothesis"], "target_metric": experiment["target_metric"], "items": [
             "Hypothesis and acceptance criteria are reflected in the implementation",
             "Resident data is minimized and access controls are verified",
             "Failure paths, retries, and human override are tested",
@@ -41,6 +41,8 @@ def build_quality_artifact(kind: str, experiment: dict, task_count: int, complet
         trend = "baseline"
         if previous:
             changes = [snapshot[key] - previous[key] for key in snapshot]
-            trend = "improving" if changes[0] <= 0 and changes[1] >= 0 and changes[2] >= 0 else "regressing" if changes[0] > 0 or changes[1] < 0 or changes[2] < 0 else "mixed"
+            good = [changes[0] < 0, changes[1] > 0, changes[2] > 0]
+            bad = [changes[0] > 0, changes[1] < 0, changes[2] < 0]
+            trend = "mixed" if any(good) and any(bad) else "improving" if any(good) else "regressing" if any(bad) else "unchanged"
         return {**snapshot, "trend": trend, "tests_passed": evidence["tests_passed"], "tests_total": evidence["tests_total"], "source": "measured evidence"}
     raise ValueError("Unsupported quality artifact")

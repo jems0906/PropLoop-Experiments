@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes.core import router
+from app.api.routes.core import router, ci_router
+from app.auth import router as auth_router
+from app import auth_models  # noqa: F401
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.models import Experiment, ImplementationTask, Metric
@@ -18,6 +20,8 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title=settings.app_name, version="1.0.0", description="Human-gated product experimentation for property management teams.", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_url, "http://localhost:5173", "http://127.0.0.1:5173"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(router, prefix="/api")
+app.include_router(ci_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 
 def init_db():

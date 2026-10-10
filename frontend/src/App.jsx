@@ -1,12 +1,17 @@
 import { lazy, startTransition, Suspense, useEffect, useState } from 'react'
 import {
   Activity, AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3,
-  Bell, Check, CheckCircle2, ChevronDown, Circle, ClipboardCheck, Clock3,
+  Check, CheckCircle2, ChevronDown, Circle, ClipboardCheck, Clock3,
   FileText, FlaskConical, GitPullRequest, LayoutDashboard, ListChecks, Plus,
   RefreshCw, ShieldCheck, Sparkles, TrendingUp, X,
 } from 'lucide-react'
 import { api } from './api/client'
 import './App.css'
+import AccountAccess from './components/AccountAccess'
+import TeamSettings from './components/TeamSettings'
+import OutcomeCapture from './components/OutcomeCapture'
+import ExperimentBoard from './components/ExperimentBoard'
+import './components/gaps.css'
 
 const LearningTrend = lazy(() => import('./components/LearningTrend.jsx'))
 const stageOrder = ['hypothesis', 'design', 'plan', 'build', 'measure', 'decision']
@@ -31,6 +36,10 @@ function App() {
   const [notice, setNotice] = useState('')
   const [qualityRecords, setQualityRecords] = useState([])
   const [qualityTrends, setQualityTrends] = useState([])
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [trend, setTrend] = useState([])
+  const [todayLabel] = useState(() => new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))
 
   const refresh = async (keepNotice = true) => {
     try {
@@ -38,29 +47,41 @@ function App() {
       startTransition(() => {
         setExperiments(overview.experiments)
         setTemplates(availableTemplates)
+        setTrend(overview.trend)
         setSelectedId((current) => current ?? overview.experiments[0]?.id ?? null)
         setError('')
         if (!keepNotice) setNotice('')
       })
     } catch (err) {
+      if (err.status === 401) setUser(null)
       setError(err.message || 'Could not connect to the PropLoop API.')
     }
   }
 
   useEffect(() => {
     let active = true
+    api.me().then((session) => { if (active) setUser(session.user) }).catch((err) => {
+      if (active && err.status !== 401) setError(err.message)
+    }).finally(() => { if (active) setAuthLoading(false) })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!user) return undefined
+    let active = true
     Promise.all([api.overview(), api.templates()]).then(([overview, availableTemplates]) => {
       if (!active) return
       startTransition(() => {
         setExperiments(overview.experiments)
         setTemplates(availableTemplates)
+        setTrend(overview.trend)
         setSelectedId((current) => current ?? overview.experiments[0]?.id ?? null)
       })
     }).catch((err) => {
       if (active) setError(err.message || 'Could not connect to the PropLoop API.')
     })
     return () => { active = false }
-  }, [])
+  }, [user])
 
   const selected = experiments.find((item) => item.id === selectedId)
   const summary = {
@@ -88,7 +109,7 @@ function App() {
   }
 
   useEffect(() => {
-    if (view !== 'quality' || !selectedId) return undefined
+    if (!user || view !== 'quality' || !selectedId) return undefined
     let active = true
     Promise.all([api.quality(selectedId), api.qualityTrends()]).then(([records, trends]) => {
       if (active) startTransition(() => { setQualityRecords(records); setQualityTrends(trends) })
@@ -96,7 +117,7 @@ function App() {
       if (active) setError(err.message)
     })
     return () => { active = false }
-  }, [view, selectedId])
+  }, [view, selectedId, user])
 
   const generateArtifact = async (kind, evidence) => {
     await run(async () => {
@@ -109,6 +130,10 @@ function App() {
   }
 
   const selectView = (next) => setView(next)
+  const canReview = ['admin', 'reviewer'].includes(user?.role)
+
+  if (authLoading) return <main className="auth-loading">Checking your session...</main>
+  if (!user) return <AccountAccess onAuthenticated={(session) => { setUser(session.user); setError('') }} />
 
   return (
     <div className="app-shell">
@@ -127,6 +152,8 @@ function App() {
           <button className={view === 'overview' ? 'nav-item active' : 'nav-item'} onClick={() => selectView('overview')}><LayoutDashboard size={17} /> Overview</button>
           <button className={view === 'experiments' ? 'nav-item active' : 'nav-item'} onClick={() => selectView('experiments')}><FlaskConical size={17} /> Experiments <span className="nav-count">{experiments.length}</span></button>
           <button className={view === 'quality' ? 'nav-item active' : 'nav-item'} onClick={() => selectView('quality')}><ShieldCheck size={17} /> Dev-loop quality</button>
+          <button className={view === 'board' ? 'nav-item active' : 'nav-item'} onClick={() => selectView('board')}><ListChecks size={17} /> Experiment board</button>
+          <button className={view === 'team' ? 'nav-item active' : 'nav-item'} onClick={() => selectView('team')}><ShieldCheck size={17} /> Team accounts</button>
         </nav>
         <div className="sidebar-divider" />
         <div className="nav-caption recent-caption">RECENT EXPERIMENTS <button aria-label="Create experiment" title="Create experiment" onClick={() => setModal(true)}><Plus size={15} /></button></div>
@@ -140,14 +167,16 @@ function App() {
       <main className="main-area">
         <header className="topbar">
           <div className="breadcrumbs"><span>Workspace</span><span className="crumb-slash">/</span><strong>{view === 'overview' ? 'Overview' : view === 'quality' ? 'Dev-loop quality' : selected?.name || 'Experiments'}</strong></div>
-          <div className="topbar-actions"><span className="today-label">THURSDAY, OCTOBER 09</span><button className="icon-button" title="Refresh data" aria-label="Refresh data" onClick={() => refresh(false)}><RefreshCw size={16} /></button><button className="notification-button" title="Notifications" aria-label="Notifications"><Bell size={16} /><i /></button><span className="user-avatar" title="Product team">JD</span></div>
+          <div className="topbar-actions"><span className="today-label">{todayLabel}</span><button className="icon-button" title="Refresh data" aria-label="Refresh data" onClick={() => refresh(false)}><RefreshCw size={16} /></button><span className="user-avatar" title={`${user.name} (${user.role})`}>{user.name.slice(0, 2).toUpperCase()}</span><button className="quiet-button" onClick={async () => { try { await api.logout(); setUser(null); setExperiments([]); setSelectedId(null) } catch (err) { setError(err.message) } }}>Sign out</button></div>
         </header>
 
         {error && <div className="alert alert-error"><AlertCircle size={17} /><span>{error}</span><button aria-label="Dismiss error" onClick={() => setError('')}><X size={15} /></button></div>}
         {notice && <div className="alert alert-success"><CheckCircle2 size={17} /><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice('')}><X size={15} /></button></div>}
 
-        {view === 'overview' && <Overview experiments={experiments} summary={summary} selectExperiment={(id) => { setSelectedId(id); setView('experiments') }} onCreate={() => setModal(true)} />}
-        {view === 'experiments' && selected && <ExperimentDetail experiment={selected} busy={busy} run={run} onEdit={() => setModal(true)} />}
+        {view === 'overview' && <Overview experiments={experiments} trend={trend} summary={summary} selectExperiment={(id) => { setSelectedId(id); setView('experiments') }} onCreate={() => setModal(true)} />}
+        {view === 'board' && <ExperimentBoard experiments={experiments} onSelect={(id) => { setSelectedId(id); setView('experiments') }} />}
+        {view === 'team' && <TeamSettings user={user} />}
+        {view === 'experiments' && selected && <ExperimentDetail key={`${selected.id}-${selected.cycle}`} experiment={selected} canReview={canReview} busy={busy} run={run} onEdit={() => setModal(true)} />}
         {view === 'experiments' && !selected && <EmptyState onCreate={() => setModal(true)} />}
         {view === 'quality' && selected && <QualityView experiment={selected} records={qualityRecords} trends={qualityTrends} onGenerate={generateArtifact} busy={busy} />}
         {view === 'quality' && !selected && <EmptyState onCreate={() => setModal(true)} />}
@@ -167,13 +196,9 @@ function App() {
   )
 }
 
-function Overview({ experiments, summary, selectExperiment, onCreate }) {
+function Overview({ experiments, summary, selectExperiment, onCreate, trend = [] }) {
   const stages = ['hypothesis', 'design', 'plan', 'build', 'measure', 'decision']
-  const chartData = [
-    { week: 'Sep 08', shipped: 1, active: 2 }, { week: 'Sep 15', shipped: 2, active: 3 },
-    { week: 'Sep 22', shipped: 2, active: 2 }, { week: 'Sep 29', shipped: 3, active: 4 },
-    { week: 'Oct 06', shipped: summary.shipped, active: summary.active },
-  ]
+  const chartData = trend
   return <div className="page-content page-enter">
     <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-mark" /> EXPERIMENTATION WORKSPACE</div><h1>Make the next move <em>measurable.</em></h1><p>Run a focused hypothesis from first brief to a decision you can stand behind.</p></div><button className="primary-button" onClick={onCreate}><Plus size={17} /> New experiment</button></div>
     <section className="metric-strip" aria-label="Workspace summary">
@@ -185,13 +210,13 @@ function Overview({ experiments, summary, selectExperiment, onCreate }) {
     <section className="journey-panel">
       <div className="section-head"><div><div className="section-kicker">THE LEARNING LOOP</div><h2>From question to decision</h2></div><span className="cycle-tag"><RefreshCw size={13} /> Repeatable by design</span></div>
       <div className="journey-rail">{stages.map((stage, index) => <div className="journey-step" key={stage}><span className={`journey-icon journey-${stage}`}><JourneyIcon stage={stage} /></span><span className="journey-copy"><strong>{stageLabel[stage]}</strong><small>{['Frame the opportunity', 'Shape the experience', 'Approve the work', 'Build the smallest test', 'Read the evidence', 'Ship, iterate, or stop'][index]}</small></span>{index < stages.length - 1 && <ArrowRight className="journey-arrow" size={15} />}</div>)}</div>
-      <div className="gate-note"><ShieldCheck size={15} /><span>Human approval gates keep every experiment intentional.</span><span className="gate-count">3 APPROVAL POINTS</span></div>
+      <div className="gate-note"><ShieldCheck size={15} /><span>Named reviewers approve every lifecycle stage.</span><span className="gate-count">6 APPROVAL POINTS</span></div>
     </section>
     <div className="overview-grid">
       <section className="panel experiments-panel"><div className="section-head panel-head"><div><div className="section-kicker">IN MOTION</div><h2>Experiments</h2></div><button className="text-button" onClick={() => experiments[0] && selectExperiment(experiments[0].id)}>View all <ArrowRight size={15} /></button></div>
         {experiments.length ? <div className="experiment-table"><div className="table-labels"><span>EXPERIMENT</span><span>STAGE</span><span>BUILD</span><span>PRIMARY METRIC</span></div>{experiments.slice(0, 5).map((item) => <button className="experiment-row" key={item.id} onClick={() => selectExperiment(item.id)}><span className="exp-name"><span className={`exp-type-icon ${item.stage}`}><FlaskConical size={15} /></span><span><strong>{item.name}</strong><small>{item.template_id?.replaceAll('-', ' ') || 'Custom experiment'}</small></span></span><span><StatusBadge stage={item.stage} /></span><span className="progress-cell"><span className="progress-track"><i style={{ width: `${item.task_progress.total ? (item.task_progress.completed / item.task_progress.total) * 100 : 0}%` }} /></span><small>{item.task_progress.completed}/{item.task_progress.total}</small></span><span className="table-metric">{item.target_metric}<ArrowRight size={14} /></span></button>)}</div> : <EmptyRows onCreate={onCreate} />}
       </section>
-      <section className="panel trend-panel"><div className="section-head panel-head"><div><div className="section-kicker">TEAM MOMENTUM</div><h2>Learning velocity</h2></div><button className="period-button">Last 5 weeks <ChevronDown size={13} /></button></div><div className="trend-legend"><span><i className="legend-dot active-dot" /> Active</span><span><i className="legend-dot shipped-dot" /> Shipped</span></div><div className="trend-chart"><Suspense fallback={<div className="chart-loading" />}><LearningTrend data={chartData} /></Suspense></div><div className="trend-foot"><span><i className="trend-up"><ArrowUpRight size={14} /></i> Consistent learning cycles</span><span>Illustrative trend</span></div></section>
+      <section className="panel trend-panel"><div className="section-head panel-head"><div><div className="section-kicker">TEAM MOMENTUM</div><h2>Learning velocity</h2></div><span className="period-button">Last 5 weeks</span></div><div className="trend-legend"><span><i className="legend-dot active-dot" /> Created</span><span><i className="legend-dot shipped-dot" /> Shipped</span></div><div className="trend-chart"><Suspense fallback={<div className="chart-loading" />}><LearningTrend data={chartData} /></Suspense></div><div className="trend-foot"><span>Recorded creation and release dates</span><span>Actual experiment history</span></div></section>
     </div>
   </div>
 }
@@ -206,7 +231,7 @@ function JourneyIcon({ stage }) {
   return <Icon size={16} />
 }
 
-function ExperimentDetail({ experiment, busy, run, onEdit }) {
+function ExperimentDetail({ experiment, canReview, busy, run }) {
   const [metricOpen, setMetricOpen] = useState(false)
   const [decisionOpen, setDecisionOpen] = useState(false)
   const [blockerOpen, setBlockerOpen] = useState(false)
@@ -216,6 +241,8 @@ function ExperimentDetail({ experiment, busy, run, onEdit }) {
   const [participantKey, setParticipantKey] = useState('')
   const [lastAssignment, setLastAssignment] = useState(null)
   const [specState, setSpecState] = useState({ id: null, value: null })
+  const [briefOpen, setBriefOpen] = useState(false)
+  const [brief, setBrief] = useState({ name: experiment.name, hypothesis: experiment.hypothesis, problem_statement: experiment.problem_statement, target_metric: experiment.target_metric, template_id: experiment.template_id })
   const specDraft = specState.id === experiment.id ? specState.value : experiment.spec
   const metrics = experiment.metrics || []
 
@@ -223,7 +250,10 @@ function ExperimentDetail({ experiment, busy, run, onEdit }) {
     const source = current.id === experiment.id ? current.value : experiment.spec
     return { id: experiment.id, value: { ...source, [field]: value } }
   })
-  const saveSpec = () => run(() => api.saveSpec(experiment.id, specDraft), 'Spec changes saved for review')
+  const saveSpec = async () => {
+    const saved = await run(() => api.saveSpec(experiment.id, specDraft), 'Spec changes saved for review')
+    if (saved) setSpecState({ id: null, value: null })
+  }
   const saveMetric = async (event) => {
     event.preventDefault()
     await run(() => api.addMetric(experiment.id, { ...metric, baseline: Number(metric.baseline), observed: Number(metric.observed), sample_size: Number(metric.sample_size) }), 'Outcome metric recorded')
@@ -248,38 +278,59 @@ function ExperimentDetail({ experiment, busy, run, onEdit }) {
     await run(() => api.blocker(experiment.id, blocker), blocker ? 'Blocker flagged for the team' : 'Blocker cleared')
     setBlockerOpen(false)
   }
-  const canDecide = experiment.plan_approved && experiment.tasks.length > 0 && experiment.tasks.every((task) => task.status === 'done') && metrics.length > 0
+  const canDecide = canReview && experiment.stage === 'decision' && !experiment.blocker
+  const hypothesisApproved = experiment.approvals?.some((item) => item.stage === 'hypothesis' && item.cycle === experiment.cycle)
+  const stageGate = ['hypothesis', 'build', 'measure'].includes(experiment.stage)
+  const approveDraft = async (stage) => {
+    const saved = await run(async () => {
+      await api.saveSpec(experiment.id, specDraft)
+      return stage === 'design' ? api.approveSpec(experiment.id) : api.approvePlan(experiment.id)
+    }, `${stage} approved by reviewer`)
+    if (saved) setSpecState({ id: null, value: null })
+  }
+  const onEdit = () => {
+    if (experiment.stage === 'hypothesis' && !hypothesisApproved) setBriefOpen(!briefOpen)
+  }
 
   return <div className="page-content detail-page page-enter">
-    <div className="detail-breadcrumb"><button onClick={onEdit}><span className="exp-type-icon small"><FlaskConical size={14} /></span></button><span>{experiment.template_id?.replaceAll('-', ' ') || 'Custom experiment'}</span><span>/</span><strong>{experiment.name}</strong></div>
+    <div className="detail-breadcrumb"><span className="exp-type-icon small"><FlaskConical size={14} /></span><span>{experiment.template_id?.replaceAll('-', ' ') || 'Custom experiment'}</span><span>/</span><strong>{experiment.name}</strong></div>
     <div className="detail-title-row"><div><div className="eyebrow"><span className="eyebrow-mark" /> EXPERIMENT {String(experiment.id).padStart(3, '0')}</div><h1>{experiment.name}</h1><div className="title-meta"><StatusBadge stage={experiment.stage} /><span className="meta-separator" /> Started {new Date(experiment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}<span className="meta-separator" /><span className="owner-chip">JD</span> Product team</div></div><div className="title-actions"><button className="secondary-button" onClick={() => setBlockerOpen(!blockerOpen)}><AlertCircle size={15} /> {experiment.blocker ? 'Update blocker' : 'Flag blocker'}</button><button className="icon-button" title="More experiment actions" aria-label="More experiment actions" onClick={() => window.print()}><FileText size={16} /></button></div></div>
     {blockerOpen && <form className="blocker-form" onSubmit={saveBlocker}><AlertCircle size={16} /><input aria-label="Blocker description" placeholder="What is blocking progress?" value={blocker} onChange={(event) => setBlocker(event.target.value)} /><button className="primary-button small-button" disabled={busy}>Save blocker</button></form>}
     {experiment.blocker && <div className="blocker-banner"><AlertCircle size={16} /><span><strong>Blocker raised</strong> {experiment.blocker}</span><button onClick={() => { setBlocker(''); setBlockerOpen(true) }}>Resolve</button></div>}
     <LifecycleRail stage={experiment.stage} />
+    {stageGate && !(experiment.stage === 'hypothesis' && hypothesisApproved) && <section className="panel stage-gate-panel"><strong>Approve {stageLabel[experiment.stage]} to progress</strong><p>{experiment.stage === 'hypothesis' ? 'Review the hypothesis before AI drafts a design.' : experiment.stage === 'build' ? 'Complete all implementation tasks before approving the build for measurement.' : 'Review observations, sample sizes and guardrails before approving the release review.'}</p><button className="primary-button" disabled={busy || !canReview || !!experiment.blocker} onClick={() => run(() => api.approveStage(experiment.id, experiment.stage), `${stageLabel[experiment.stage]} approved`)}>Approve {stageLabel[experiment.stage]}</button>{!canReview && <small>A reviewer or admin must approve this stage.</small>}</section>}
+    {briefOpen && <form className="panel brief-editor" onSubmit={async (event) => { event.preventDefault(); const result = await run(() => api.saveBrief(experiment.id, brief), 'Hypothesis updated'); if (result) setBriefOpen(false) }}>{['name', 'hypothesis', 'problem_statement', 'target_metric'].map((field) => <label key={field}>{field.replaceAll('_', ' ')}<textarea required value={brief[field]} onChange={(event) => setBrief({ ...brief, [field]: event.target.value })} /></label>)}<button className="primary-button" disabled={busy}>Save hypothesis</button></form>}
+    {!!experiment.approvals?.length && <details className="panel approval-history"><summary>Approval audit · cycle {experiment.cycle}</summary>{experiment.approvals.map((entry, index) => <p key={index}>Cycle {entry.cycle} · {entry.stage} · {entry.reviewer_name} · {new Date(entry.approved_at).toLocaleString()}</p>)}</details>}
+    {!!experiment.history?.length && <details className="panel approval-history"><summary>Archived iteration evidence ({experiment.history.length})</summary>{experiment.history.map((entry) => <details key={entry.cycle}><summary>Cycle {entry.cycle}: {entry.rationale}</summary><pre>{JSON.stringify(entry.snapshot, null, 2)}</pre></details>)}</details>}
     <div className="detail-columns">
       <div className="detail-main-column">
         <section className="panel hypothesis-panel"><div className="section-head panel-head"><div><div className="section-kicker">THE BET</div><h2>Experiment hypothesis</h2></div><span className="hypothesis-number">01</span></div><blockquote>“{experiment.hypothesis}”</blockquote><div className="problem-note"><span>PROBLEM</span><p>{experiment.problem_statement}</p></div><div className="hypothesis-footer"><span><TrendingUp size={14} /> Target metric</span><strong>{experiment.target_metric}</strong><button className="quiet-button" onClick={onEdit}>Edit brief</button></div></section>
         <section className="panel spec-panel"><div className="section-head panel-head"><div><div className="section-kicker">DESIGN & PLAN</div><h2>AI-assisted spec</h2></div><span className={`approval-pill ${experiment.spec_approved ? 'approved' : ''}`}>{experiment.spec_approved ? <><Check size={13} /> Spec approved</> : <><Clock3 size={13} /> Review required</>}</span></div>
-          {!experiment.spec ? <div className="spec-empty"><span className="ai-orbit"><Sparkles size={20} /></span><div><strong>Turn this hypothesis into a build-ready brief.</strong><p>Generate a user story, success definition, risks, acceptance criteria, and an implementation plan.</p></div><button className="primary-button" disabled={busy} onClick={() => run(() => api.generateSpec(experiment.id), 'Draft spec generated. Review and edit it before approval.')}><Sparkles size={16} /> Generate spec</button></div> : <div className="spec-content">
+          {!experiment.spec ? <div className="spec-empty"><span className="ai-orbit"><Sparkles size={20} /></span><div><strong>Turn this hypothesis into a build-ready brief.</strong><p>Generate a user story, success definition, risks, acceptance criteria, and an implementation plan.</p></div><button className="primary-button" disabled={busy || !hypothesisApproved} onClick={() => run(() => api.generateSpec(experiment.id), 'Draft spec generated. Review and edit it before approval.')}><Sparkles size={16} /> Generate spec</button></div> : <div className="spec-content">
+            <div className="spec-field"><label>DESIGN BRIEF<textarea value={specDraft?.design_brief || ''} disabled={experiment.spec_approved} onChange={(event) => updateSpec('design_brief', event.target.value)} /></label></div>
+            <div className="spec-field"><label>METRIC NAME<input value={specDraft?.success_metric?.name || ''} disabled={experiment.spec_approved} onChange={(event) => updateSpec('success_metric', { ...specDraft.success_metric, name: event.target.value })} /></label></div>
+            <div className="spec-field"><label>METRIC GUARDRAILS<textarea value={(specDraft?.success_metric?.guardrails || []).join('\n')} disabled={experiment.spec_approved} onChange={(event) => updateSpec('success_metric', { ...specDraft.success_metric, guardrails: event.target.value.split('\n').filter((item) => item.trim()) })} /></label></div>
             <div className="spec-field"><label htmlFor="spec-story">USER STORY</label><textarea id="spec-story" value={specDraft?.user_story || ''} disabled={experiment.spec_approved} onChange={(event) => updateSpec('user_story', event.target.value)} rows={2} /></div>
             <div className="spec-field"><label htmlFor="spec-definition">SUCCESS METRIC DEFINITION</label><textarea id="spec-definition" value={specDraft?.success_metric?.definition || ''} disabled={experiment.spec_approved} onChange={(event) => updateSpec('success_metric', { ...specDraft.success_metric, definition: event.target.value })} rows={2} /></div>
             <div className="spec-split"><div><label className="mini-heading" htmlFor="spec-risks">RISKS & MITIGATIONS</label><textarea className="spec-edit-list" id="spec-risks" rows={4} disabled={experiment.spec_approved} value={(specDraft?.risks || []).map((risk) => `${risk.risk} | ${risk.mitigation}`).join('\n')} onChange={(event) => updateSpec('risks', event.target.value.split('\n').filter((line) => line.trim()).map((line) => { const [risk, ...mitigation] = line.split('|'); return { risk: risk.trim(), mitigation: mitigation.join('|').trim() } }))} /></div><div><label className="mini-heading" htmlFor="spec-criteria">ACCEPTANCE CRITERIA</label><textarea className="spec-edit-list" id="spec-criteria" rows={4} disabled={experiment.spec_approved} value={(specDraft?.acceptance_criteria || []).join('\n')} onChange={(event) => updateSpec('acceptance_criteria', event.target.value.split('\n').map((item) => item.trim()).filter(Boolean))} /></div></div>
-            <div className="spec-footer"><span className="provider-tag"><Sparkles size={12} /> {specDraft?.provider || 'mock'} provider · {specDraft?.estimated_effort || 'Effort TBD'}</span>{!experiment.spec_approved ? <div className="spec-actions"><button className="secondary-button" disabled={busy} onClick={saveSpec}>Save edits</button><button className="primary-button" disabled={busy} onClick={() => run(() => api.approveSpec(experiment.id), 'Spec approved. The task plan is ready for review.')}><Check size={15} /> Approve spec</button></div> : <span className="locked-note"><CheckCircle2 size={14} /> Approved and locked</span>}</div>
+            {!experiment.plan_approved && <div className="draft-plan-editor"><label>ESTIMATED EFFORT<input value={specDraft?.estimated_effort || ''} onChange={(event) => updateSpec('estimated_effort', event.target.value)} /></label>{(specDraft?.implementation_checklist || []).map((task, index) => <div className="draft-task-editor" key={index}><label>Task {index + 1}<input value={task.title} onChange={(event) => updateSpec('implementation_checklist', specDraft.implementation_checklist.map((entry, i) => i === index ? { ...entry, title: event.target.value } : entry))} /></label><label>Description<textarea value={task.description} onChange={(event) => updateSpec('implementation_checklist', specDraft.implementation_checklist.map((entry, i) => i === index ? { ...entry, description: event.target.value } : entry))} /></label><button className="quiet-button" disabled={busy} onClick={() => updateSpec('implementation_checklist', specDraft.implementation_checklist.filter((_, i) => i !== index))}>Remove task</button></div>)}<button className="secondary-button" onClick={() => updateSpec('implementation_checklist', [...specDraft.implementation_checklist, { title: '', description: '' }])}>Add task</button></div>}
+            <div className="spec-footer"><span className="provider-tag"><Sparkles size={12} /> {specDraft?.provider || 'mock'} provider · {specDraft?.estimated_effort || 'Effort TBD'}</span>{!experiment.plan_approved && <button className="secondary-button" disabled={busy} onClick={saveSpec}>Save edits</button>}{!experiment.spec_approved ? <button className="primary-button" disabled={busy || !canReview || !!experiment.blocker} onClick={() => approveDraft('design')}><Check size={15} /> Approve spec</button> : <span className="locked-note"><CheckCircle2 size={14} /> Design approved and locked</span>}</div>
           </div>}
         </section>
         <section className="panel build-panel"><div className="section-head panel-head"><div><div className="section-kicker">IMPLEMENTATION</div><h2>Build checklist <span className="count-badge">{experiment.task_progress.completed}/{experiment.task_progress.total}</span></h2></div><span className={`approval-pill ${experiment.plan_approved ? 'approved' : ''}`}>{experiment.plan_approved ? <><Check size={13} /> Plan approved</> : <><Clock3 size={13} /> Plan approval required</>}</span></div>
-          {!experiment.plan_approved ? <div className="approval-gate"><span className="gate-lock"><ShieldCheck size={17} /></span><span><strong>Pause before implementation.</strong><small>Review the generated tasks below. Approve the plan to start implementation tracking.</small><div className="plan-preview">{(experiment.spec?.implementation_checklist || []).map((task, index) => <div className="plan-preview-item" key={`${task.title}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{task.title}</strong><small>{task.description}</small></div>)}</div></span><button className="primary-button" disabled={busy || !experiment.spec_approved} onClick={() => run(() => api.approvePlan(experiment.id), 'Task plan approved. Build can begin.')}><Check size={15} /> Approve task plan</button></div> : <>
-            <div className="task-list">{experiment.tasks.map((task, index) => <label className={`task-row ${task.status === 'done' ? 'task-done' : ''}`} key={task.id}><button className={`task-check ${task.status === 'done' ? 'checked' : ''}`} aria-label={`Mark ${task.title} ${task.status === 'done' ? 'not done' : 'done'}`} onClick={(event) => { event.preventDefault(); run(() => api.updateTask(task.id, task.status === 'done' ? 'todo' : 'done'), task.status === 'done' ? 'Task reopened' : 'Task marked complete') }}>{task.status === 'done' ? <Check size={13} /> : <span>{String(index + 1).padStart(2, '0')}</span>}</button><span className="task-copy"><strong>{task.title}</strong><small>{task.description}</small></span><span className={`task-state ${task.status}`}>{task.status === 'done' ? 'Done' : task.status === 'in_progress' ? 'In progress' : 'To do'}</span></label>)}</div>
+          {!experiment.plan_approved ? <div className="approval-gate"><span className="gate-lock"><ShieldCheck size={17} /></span><span><strong>Pause before implementation.</strong><small>Review the generated tasks below. Approve the plan to start implementation tracking.</small><div className="plan-preview">{(specDraft?.implementation_checklist || []).map((task, index) => <div className="plan-preview-item" key={`${task.title}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{task.title}</strong><small>{task.description}</small></div>)}</div></span><button className="primary-button" disabled={busy || !canReview || !experiment.spec_approved || !!experiment.blocker} onClick={() => approveDraft('plan')}><Check size={15} /> Approve task plan</button></div> : <>
+            <div className="task-list">{experiment.tasks.map((task, index) => <label className={`task-row ${task.status === 'done' ? 'task-done' : ''}`} key={task.id}><button disabled={busy || experiment.stage !== 'build'} className={`task-check ${task.status === 'done' ? 'checked' : ''}`} aria-label={`Mark ${task.title} ${task.status === 'done' ? 'not done' : 'done'}`} onClick={(event) => { event.preventDefault(); run(() => api.updateTask(task.id, task.status === 'done' ? 'todo' : 'done'), task.status === 'done' ? 'Task reopened' : 'Task marked complete') }}>{task.status === 'done' ? <Check size={13} /> : <span>{String(index + 1).padStart(2, '0')}</span>}</button><span className="task-copy"><strong>{task.title}</strong><small>{task.description}</small></span><span className={`task-state ${task.status}`}>{task.status === 'done' ? 'Done' : task.status === 'in_progress' ? 'In progress' : 'To do'}</span></label>)}</div>
             {!experiment.tasks.length && <p className="no-tasks">The approved plan did not include tasks. Generate a new spec to create a checklist.</p>}
             <div className="build-foot"><div className="build-progress"><span>Build progress</span><strong>{experiment.task_progress.total ? Math.round(experiment.task_progress.completed / experiment.task_progress.total * 100) : 0}%</strong><span className="progress-track"><i style={{ width: `${experiment.task_progress.total ? (experiment.task_progress.completed / experiment.task_progress.total) * 100 : 0}%` }} /></span></div><span className="build-footnote"><ShieldCheck size={13} /> Plan approved by product team</span></div>
           </>}
         </section>
       </div>
       <div className="detail-side-column">
-        <section className="panel metrics-panel"><div className="section-head panel-head"><div><div className="section-kicker">MEASURE THE CHANGE</div><h2>Outcome metrics</h2></div><button className="icon-button compact" title="Add metric result" aria-label="Add metric result" onClick={() => setMetricOpen(!metricOpen)}><Plus size={16} /></button></div>
+        <OutcomeCapture experiment={experiment} busy={busy} run={run} />
+        <section className="panel metrics-panel"><div className="section-head panel-head"><div><div className="section-kicker">MEASURE THE CHANGE</div><h2>Outcome metrics</h2></div><button disabled={busy || experiment.stage !== 'measure'} className="icon-button compact" title="Add metric result" aria-label="Add metric result" onClick={() => setMetricOpen(!metricOpen)}><Plus size={16} /></button></div>
           {experiment.plan_approved && ['build', 'measure'].includes(experiment.stage) && <div className="assignment-panel"><div className="mini-heading">CONTROLLED TEST ENROLLMENT</div><p>Use an opaque participant key, never a resident name or email. Assignment is stable at a 50/50 split.</p><form onSubmit={assignParticipant}><input minLength={8} maxLength={128} required value={participantKey} onChange={(event) => setParticipantKey(event.target.value)} placeholder="e.g. resident-cohort-014" aria-label="Opaque participant key" /><button className="secondary-button" disabled={busy}>Assign arm</button></form><div className="assignment-counts"><span>Control <strong>{experiment.assignment_summary?.control || 0}</strong></span><span>Treatment <strong>{experiment.assignment_summary?.treatment || 0}</strong></span>{lastAssignment && <span className={`assignment-result ${lastAssignment.variant}`}>Latest: {lastAssignment.variant}</span>}</div></div>}
           {metrics.length ? <div className="metric-results">{metrics.map((item) => <MetricResult key={item.id} metric={item} />)}</div> : <div className="metrics-empty"><BarChart3 size={23} /><strong>No results recorded yet</strong><span>Capture a baseline and observed outcome to start the learning loop.</span></div>}
-          {metricOpen && <form className="metric-form" onSubmit={saveMetric}><label>Metric name<input required value={metric.name} onChange={(event) => setMetric({ ...metric, name: event.target.value })} /></label><div className="form-row"><label>Comparison<select value={metric.comparison_mode} onChange={(event) => setMetric({ ...metric, comparison_mode: event.target.value })}><option value="before_after">Before / after</option><option value="controlled">Control / treatment</option></select></label><label>Unit<select value={metric.unit} onChange={(event) => setMetric({ ...metric, unit: event.target.value })}><option>%</option><option>min</option><option>hrs</option><option>score</option></select></label></div><div className="form-row"><label>{metric.comparison_mode === 'controlled' ? 'Control outcome' : 'Baseline'}<input type="number" step="any" required value={metric.baseline} onChange={(event) => setMetric({ ...metric, baseline: event.target.value })} /></label><label>{metric.comparison_mode === 'controlled' ? 'Treatment outcome' : 'Observed'}<input type="number" step="any" required value={metric.observed} onChange={(event) => setMetric({ ...metric, observed: event.target.value })} /></label></div><div className="form-row metric-form-bottom"><label>Better when<select value={metric.direction} onChange={(event) => setMetric({ ...metric, direction: event.target.value })}><option value="higher">Higher</option><option value="lower">Lower</option></select></label>{metric.comparison_mode === 'before_after' ? <label>Sample size<input type="number" min="2" value={metric.sample_size} onChange={(event) => setMetric({ ...metric, sample_size: event.target.value })} /></label> : <span className="arm-sample-note">Sample sizes use enrolled control/treatment counts.</span>}</div><button className="primary-button full-button" disabled={busy}>Record outcome</button></form>}
+          {metricOpen && <form className="metric-form" onSubmit={saveMetric}><p>Manual before/after observations are descriptive. Use participant outcomes above for controlled-test significance.</p><label>Metric name<input required value={metric.name} onChange={(event) => setMetric({ ...metric, name: event.target.value })} /></label><label>Unit<select value={metric.unit} onChange={(event) => setMetric({ ...metric, unit: event.target.value })}><option>%</option><option>min</option><option>hrs</option><option>score</option></select></label><div className="form-row"><label>Baseline<input type="number" step="any" required value={metric.baseline} onChange={(event) => setMetric({ ...metric, baseline: event.target.value })} /></label><label>Observed<input type="number" step="any" required value={metric.observed} onChange={(event) => setMetric({ ...metric, observed: event.target.value })} /></label></div><div className="form-row"><label>Better when<select value={metric.direction} onChange={(event) => setMetric({ ...metric, direction: event.target.value })}><option value="higher">Higher</option><option value="lower">Lower</option></select></label><label>Sample size<input type="number" min="1" required value={metric.sample_size} onChange={(event) => setMetric({ ...metric, sample_size: event.target.value })} /></label></div><button className="primary-button full-button" disabled={busy || experiment.stage !== 'measure'}>Record descriptive result</button></form>}
           <div className="metrics-footer"><span>Activation</span><span>Completion</span><span>CSAT</span><span>Time saved</span><span>Error rate</span></div>
         </section>
         <section className="panel decision-panel"><div className="section-head panel-head"><div><div className="section-kicker">THE RELEASE GATE</div><h2>Make the call</h2></div><span className="decision-step">07</span></div><p className="decision-copy">Use the evidence to decide what happens next. Every outcome is recorded.</p>{decisionOpen ? <div className="decision-form"><label htmlFor="decision-rationale">Why this decision?</label><textarea id="decision-rationale" rows={3} placeholder="Connect the outcome to what you learned…" value={rationale} onChange={(event) => setRationale(event.target.value)} /><div className="decision-options"><button className="decision-option ship" disabled={!canDecide || busy || rationale.trim().length < 8} onClick={() => submitDecision('ship')}><ArrowUpRight size={15} /> Ship</button><button className="decision-option iterate" disabled={!canDecide || busy || rationale.trim().length < 8} onClick={() => submitDecision('iterate')}><RefreshCw size={14} /> Iterate</button><button className="decision-option stop" disabled={!canDecide || busy || rationale.trim().length < 8} onClick={() => submitDecision('stop')}><X size={15} /> Stop</button></div><button className="quiet-button cancel-decision" onClick={() => setDecisionOpen(false)}>Cancel</button></div> : <><div className="decision-buttons"><button className="decision-button ship" disabled={!canDecide || busy} onClick={() => setDecisionOpen(true)}><ArrowUpRight size={15} /><span>Ship</span></button><button className="decision-button iterate" disabled={!canDecide || busy} onClick={() => setDecisionOpen(true)}><RefreshCw size={14} /><span>Iterate</span></button><button className="decision-button stop" disabled={!canDecide || busy} onClick={() => setDecisionOpen(true)}><X size={15} /><span>Stop</span></button></div><div className="decision-hint"><ShieldCheck size={14} /> {canDecide ? 'Evidence ready. Choose an outcome.' : 'Complete the build and record metrics to unlock.'}</div></>}{experiment.decisions?.length > 0 && <div className="decision-history"><div className="mini-heading">DECISION HISTORY</div>{experiment.decisions.slice().reverse().map((entry) => <div className="decision-history-row" key={entry.id}><span className={`history-dot ${entry.outcome}`} /><span><strong>{entry.outcome}</strong><small>{entry.rationale}</small></span></div>)}</div>}</section>
@@ -297,9 +348,9 @@ function LifecycleRail({ stage }) {
 function MetricResult({ metric }) {
   const positive = metric.improved
   const controlled = metric.comparison_mode === 'controlled'
-  const confidenceLabel = metric.confidence?.significant
-    ? `${metric.confidence.confidence}% confidence`
-    : metric.confidence?.p_value != null ? `Directional · p=${metric.confidence.p_value}` : 'Insufficient data'
+  const confidenceLabel = metric.confidence?.p_value != null
+    ? `${metric.confidence.significant ? 'Significant' : 'Directional'} · p=${metric.confidence.p_value}`
+    : metric.confidence?.label || 'Insufficient data'
   return <div className="metric-result"><div className="metric-result-top"><span>{metric.name}</span><span className={`metric-delta ${positive ? 'positive' : 'negative'}`}>{positive ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{metric.relative_change === null ? `${metric.change > 0 ? '+' : ''}${metric.change}` : `${Math.abs(metric.relative_change)}%`}</span></div><div className="metric-values"><span><strong>{metric.baseline}{metric.unit}</strong><small>{controlled ? `Control · n=${metric.control_sample_size}` : 'Before'}</small></span><ArrowRight size={15} /><span className="observed-value"><strong>{metric.observed}{metric.unit}</strong><small>{controlled ? `Treatment · n=${metric.treatment_sample_size}` : 'Observed'}</small></span><span className="confidence-tag">{confidenceLabel}</span></div><div className="metric-bar"><i style={{ width: `${Math.max(6, Math.min(100, metric.observed / Math.max(metric.baseline, metric.observed, 1) * 100))}%` }} /></div><small className="sample-caption">{controlled ? `${metric.control_sample_size + metric.treatment_sample_size} assigned participants` : `${metric.sample_size} participants`} · {metric.confidence?.label || 'Directional'}</small></div>
 }
 

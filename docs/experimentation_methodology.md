@@ -13,7 +13,9 @@ PropLoop treats a product change as a testable bet. A hypothesis names the user,
 
 ## Approval gates
 
-Spec approval unlocks task-plan approval. Task-plan approval unlocks implementation tracking. A decision requires both approvals, all implementation tasks complete, and at least one recorded metric. AI output is always a draft; the human owner is accountable for approvals and release decisions.
+Each cycle has six named reviewer/admin approvals: hypothesis, design, plan, build, measurement, and decision. Members can draft and record work but cannot approve gates. Completing tasks does not automatically advance the build. An unresolved blocker prevents approval. Repeated or out-of-order approvals are rejected without replacing tasks. AI output is always a draft; design fields lock after design approval, while checklist and effort remain editable until plan approval.
+
+Iteration archives the reviewed cycle's spec, tasks, metrics, assignments, observations, and audit entries, then starts a new hypothesis cycle. Prior decisions and approval identities remain available. Shipped and stopped experiments cannot resume implementation or measurement.
 
 ## Learning practice
 
@@ -21,4 +23,8 @@ Prefer reversible changes, limited cohorts, explicit eligibility, and stable met
 
 ## Metrics
 
-The UI supports activation, task completion, simulated CSAT, time saved, and error-rate measurements through metric records. Before/after comparisons use the entered sample size; controlled comparisons use the persisted control and treatment enrollment counts. Percentage outcomes include a two-proportion estimate that supports unequal arm sizes. It is an indicator, not a substitute for a pre-registered statistical design. Time and score metrics are shown directionally.
+Record exposure and outcomes against enrolled opaque participant keys. Activation is exposed / enrolled. Completion and error rates use exposed participants only. CSAT averages submitted 1-5 ratings; duration averages submitted minute values. Missing ratings and durations are excluded, not zero-filled. Time saved is control duration minus treatment duration. The dashboard shows actual denominators separately for each metric.
+
+Binary outcomes use a two-sided Fisher exact test. Ratings and durations use a two-sided Welch t-test with a 95% interval for the treatment-minus-control difference; fewer than two observations per arm or zero total variance make continuous inference unavailable. A p-value is not the probability that a hypothesis is true. Tests are exploratory, unadjusted for multiple comparisons, and cannot remove selection bias, missing-data bias, or repeated-peeking effects. Choose a primary metric, guardrails, cohorts, duration, and stopping rules in advance. Enrollment without a recorded exposure counts as not activated; close the exposure-recording window before interpreting activation.
+
+Manually entered before/after results remain descriptive; they do not claim randomized-test significance. Historic manually entered controlled metrics are also legacy descriptive evidence, not validated participant outcomes.

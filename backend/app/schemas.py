@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
+from app.spec_contract import ExperimentSpec
 
 
 class ExperimentCreate(BaseModel):
@@ -17,13 +18,27 @@ class DecisionCreate(BaseModel):
 
 
 class SpecUpdate(BaseModel):
-    spec: dict
+    spec: ExperimentSpec
+
+
+class ObservationCreate(BaseModel):
+    exposed: bool
+    completed: bool = False
+    errored: bool = False
+    csat: float | None = Field(default=None, ge=1, le=5, allow_inf_nan=False)
+    duration_minutes: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def require_exposure(self):
+        if not self.exposed and (self.completed or self.errored or self.csat is not None or self.duration_minutes is not None):
+            raise ValueError("Outcomes require an exposed participant")
+        return self
 
 
 class MetricCreate(BaseModel):
     name: str = Field(min_length=2, max_length=100)
-    baseline: float
-    observed: float
+    baseline: float = Field(allow_inf_nan=False)
+    observed: float = Field(allow_inf_nan=False)
     unit: str = "%"
     direction: Literal["higher", "lower"] = "higher"
     comparison_mode: Literal["before_after", "controlled"] = "before_after"
@@ -47,6 +62,10 @@ class QualityEvidence(BaseModel):
 
 class QualityIngest(QualityEvidence):
     experiment_id: int = Field(gt=0)
+    lint_issues: int = Field(ge=0)
+    tests_passed: int = Field(ge=0)
+    tests_total: int = Field(ge=1)
+    coverage_after: float = Field(ge=0, le=100, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def validate_test_counts(self):

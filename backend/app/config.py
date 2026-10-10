@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     quality_ingest_token: str | None = None
     frontend_url: str = "http://localhost:5173"
+    bootstrap_token: str | None = None
+    cookie_secure: bool = False
+    session_ttl_seconds: int = 43200
+    invite_ttl_seconds: int = 172800
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
