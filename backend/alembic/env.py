@@ -7,7 +7,7 @@ from app.database import Base, engine
 from app import models  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", str(engine.url).replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", engine.url.render_as_string(hide_password=False).replace("%", "%%"))
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata

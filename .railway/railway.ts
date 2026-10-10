@@ -13,7 +13,7 @@ if (!repository || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
 }
 
 export default defineRailway(() => {
-  const database = postgres("proploop-postgres");
+  const database = postgres("proploop-postgres-reset");
   const backend = service("backend", {
     source: github(repository, { rootDirectory: "backend" }),
     healthcheck: "/api/health",
