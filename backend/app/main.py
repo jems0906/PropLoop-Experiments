@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.core import router, ci_router
+from app.api.routes.agent import router as agent_router
 from app.auth import router as auth_router
 from app import auth_models  # noqa: F401
 from app.config import settings
@@ -22,6 +23,7 @@ app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_url, "http:/
 app.include_router(router, prefix="/api")
 app.include_router(ci_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(agent_router, prefix="/api")
 
 
 def init_db():

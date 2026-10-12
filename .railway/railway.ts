@@ -20,7 +20,7 @@ export default defineRailway(() => {
     env: {
       DATABASE_URL: database.env.DATABASE_URL,
       PORT: "8000",
-      AI_PROVIDER: "mock",
+      AI_PROVIDER: preserve(),
       QUALITY_INGEST_TOKEN: preserve(),
       BOOTSTRAP_TOKEN: preserve(),
       COOKIE_SECURE: "true",
@@ -28,6 +28,10 @@ export default defineRailway(() => {
       ANTHROPIC_API_KEY: preserve(),
       OPENAI_API_KEY: preserve(),
       GEMINI_API_KEY: preserve(),
+      GITHUB_TOKEN: preserve(),
+      GITHUB_REPOSITORY: preserve(),
+      GITHUB_BASE_BRANCH: preserve(),
+      CODING_AGENT_MODEL: preserve(),
     },
   });
   const frontend = service("frontend", {
