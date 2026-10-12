@@ -50,4 +50,7 @@ export const api = {
   quality: (id) => request(`/experiments/${id}/quality`),
   qualityTrends: () => request('/quality/trends'),
   generateQuality: (id, kind, evidence = {}) => request(`/experiments/${id}/quality/${kind}`, send('POST', evidence)),
+  codingAgentStatus: () => request('/agent/status'),
+  agentRuns: (id) => request(`/experiments/${id}/agent-runs`),
+  createAgentRun: (id) => request(`/experiments/${id}/agent-runs`, send('POST', {})),
 }

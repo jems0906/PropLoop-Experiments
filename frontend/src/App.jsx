@@ -11,6 +11,7 @@ import AccountAccess from './components/AccountAccess'
 import TeamSettings from './components/TeamSettings'
 import OutcomeCapture from './components/OutcomeCapture'
 import ExperimentBoard from './components/ExperimentBoard'
+import CodingAgentPanel from './components/CodingAgentPanel'
 import './components/gaps.css'
 
 const LearningTrend = lazy(() => import('./components/LearningTrend.jsx'))
@@ -176,7 +177,7 @@ function App() {
         {view === 'overview' && <Overview experiments={experiments} trend={trend} summary={summary} selectExperiment={(id) => { setSelectedId(id); setView('experiments') }} onCreate={() => setModal(true)} />}
         {view === 'board' && <ExperimentBoard experiments={experiments} onSelect={(id) => { setSelectedId(id); setView('experiments') }} />}
         {view === 'team' && <TeamSettings user={user} />}
-        {view === 'experiments' && selected && <ExperimentDetail key={`${selected.id}-${selected.cycle}`} experiment={selected} canReview={canReview} busy={busy} run={run} onEdit={() => setModal(true)} />}
+        {view === 'experiments' && selected && <ExperimentDetail key={`${selected.id}-${selected.cycle}`} experiment={selected} canReview={canReview} isAdmin={user.role === 'admin'} busy={busy} run={run} onEdit={() => setModal(true)} />}
         {view === 'experiments' && !selected && <EmptyState onCreate={() => setModal(true)} />}
         {view === 'quality' && selected && <QualityView experiment={selected} records={qualityRecords} trends={qualityTrends} onGenerate={generateArtifact} busy={busy} />}
         {view === 'quality' && !selected && <EmptyState onCreate={() => setModal(true)} />}
@@ -231,7 +232,7 @@ function JourneyIcon({ stage }) {
   return <Icon size={16} />
 }
 
-function ExperimentDetail({ experiment, canReview, busy, run }) {
+function ExperimentDetail({ experiment, canReview, isAdmin, busy, run }) {
   const [metricOpen, setMetricOpen] = useState(false)
   const [decisionOpen, setDecisionOpen] = useState(false)
   const [blockerOpen, setBlockerOpen] = useState(false)
@@ -302,6 +303,7 @@ function ExperimentDetail({ experiment, canReview, busy, run }) {
     {briefOpen && <form className="panel brief-editor" onSubmit={async (event) => { event.preventDefault(); const result = await run(() => api.saveBrief(experiment.id, brief), 'Hypothesis updated'); if (result) setBriefOpen(false) }}>{['name', 'hypothesis', 'problem_statement', 'target_metric'].map((field) => <label key={field}>{field.replaceAll('_', ' ')}<textarea required value={brief[field]} onChange={(event) => setBrief({ ...brief, [field]: event.target.value })} /></label>)}<button className="primary-button" disabled={busy}>Save hypothesis</button></form>}
     {!!experiment.approvals?.length && <details className="panel approval-history"><summary>Approval audit · cycle {experiment.cycle}</summary>{experiment.approvals.map((entry, index) => <p key={index}>Cycle {entry.cycle} · {entry.stage} · {entry.reviewer_name} · {new Date(entry.approved_at).toLocaleString()}</p>)}</details>}
     {!!experiment.history?.length && <details className="panel approval-history"><summary>Archived iteration evidence ({experiment.history.length})</summary>{experiment.history.map((entry) => <details key={entry.cycle}><summary>Cycle {entry.cycle}: {entry.rationale}</summary><pre>{JSON.stringify(entry.snapshot, null, 2)}</pre></details>)}</details>}
+    {isAdmin && <CodingAgentPanel experiment={experiment} busy={busy} run={run} />}
     <div className="detail-columns">
       <div className="detail-main-column">
         <section className="panel hypothesis-panel"><div className="section-head panel-head"><div><div className="section-kicker">THE BET</div><h2>Experiment hypothesis</h2></div><span className="hypothesis-number">01</span></div><blockquote>“{experiment.hypothesis}”</blockquote><div className="problem-note"><span>PROBLEM</span><p>{experiment.problem_statement}</p></div><div className="hypothesis-footer"><span><TrendingUp size={14} /> Target metric</span><strong>{experiment.target_metric}</strong><button className="quiet-button" onClick={onEdit}>Edit brief</button></div></section>

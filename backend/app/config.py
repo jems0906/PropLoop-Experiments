@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
+    github_token: str | None = None
+    github_repository: str | None = None
+    github_base_branch: str = "main"
+    coding_agent_model: str = "gpt-4o-mini"
     quality_ingest_token: str | None = None
     frontend_url: str = "http://localhost:5173"
     bootstrap_token: str | None = None

@@ -30,6 +30,7 @@ def test_upgrade_preserves_existing_experiment(tmp_path):
     with engine.connect() as connection:
         row = connection.execute(text("SELECT name, cycle, approvals, history FROM experiments WHERE id = 7")).one()
         assert tuple(row) == ("Existing pilot", 1, "[]", "[]")
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0005_lifecycle_outcomes"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0006_coding_agent"
     assert "observations" in inspect(engine).get_table_names()
+    assert "agent_runs" in inspect(engine).get_table_names()
     engine.dispose()
