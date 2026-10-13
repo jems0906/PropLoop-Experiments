@@ -13,6 +13,16 @@ A product experimentation workspace for property-management teams. Turn a hypoth
 - Admin-only GitHub coding-agent flow that sends a small allowlisted source context and approved build plan to OpenAI, then opens a draft PR for human review; it never merges or claims to run tests.
 - FastAPI + SQLAlchemy + SQLite locally, PostgreSQL on Railway; React + Vite + Recharts; Docker and GitHub Actions.
 
+## Live demo
+
+[Open PropLoop Experiments](https://frontend-production-d757a.up.railway.app/).
+The hosted workspace is invite-only: an administrator creates an invitation in
+**Team accounts**, and the recipient chooses **Accept invite** to create their own
+account. Share invitation tokens privately, not in this repository.
+
+The current hosted setup uses mock AI, with the automated coding agent disabled.
+Railway hosting and PostgreSQL can incur charges; mock AI requires no paid API calls.
+
 ## Local development
 
 Prerequisites: Python 3.12+, Node.js 22+, and npm.

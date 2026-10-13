@@ -12,6 +12,5 @@ node_modules/
 backend/coverage.json
 backend/test-results.xml
 backend/lint-results.json
-frontend/node_modules/
 frontend/dist/
 frontend/test-results/
